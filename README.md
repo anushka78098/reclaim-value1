@@ -79,6 +79,48 @@ The **Assistant** answers questions about your own data ("show my inventory", "h
 
 If the AI service is offline, the backend falls back to simpler built-in rules for search, price and recommendations. Photo analysis then asks for manual entry, and the UI says so.
 
+## Dispute resolution
+
+When a trade goes wrong, buyers and sellers can raise a dispute and an Admin settles it. Nothing is decided silently: both sides can add evidence, talk in a chat, and read the final reason.
+
+**Who can do what**
+
+| Role | Can do |
+|---|---|
+| Company, Buyer, Recycler (the two sides of a trade) | Raise a dispute, add photos and written statements, chat, withdraw their own dispute, see its status and history |
+| Admin | Read all disputes and evidence, join the chat, take a case, record the final decision. Admins cannot raise disputes or add evidence |
+| Anyone else | Cannot see the dispute (the app answers "not found") |
+
+**How it works**
+
+1. **Raise.** On **Requests**, press **Raise a dispute** on a request the seller has accepted (accepted, completed or cancelled). Choose a category (incorrect description, pricing, quality, order issue or other), give it a title, describe what happened and attach up to 4 photos. A request can have one open dispute at a time.
+2. **Notify.** The other side and all Admins get a notification in the bell.
+3. **Evidence and chat.** Each side adds photos and written statements on the dispute page and talks in the dispute chat. The chat refreshes about every 10 seconds, so no refresh is needed.
+4. **Review.** An Admin opens **Resolver**, picks a case from the **Queue** and presses **Take this case**. Status changes from *Open* to *Under review* and both sides are told.
+5. **Decide.** The Admin records one outcome and a written reason (at least 10 characters):
+
+| Outcome | Effect |
+|---|---|
+| Approve | The claim is upheld. Nothing changes in the trade; the decision is recorded |
+| Reject | The claim is dismissed. Nothing changes in the trade; the decision is recorded |
+| Refund | The trade is cancelled and the listing goes back on the marketplace. No money moves through the platform |
+| Resolve | The two sides settled it themselves. The case is closed with no change to the trade |
+
+6. **Close.** Status becomes *Resolved*, both sides are notified with the reason, and the chat becomes read-only. The raiser can instead **Withdraw** an open dispute.
+
+**Resolver dashboard** (Admin only): counts of disputes waiting, under review and resolved, the average time to resolve, a **Queue** tab, and a **Resolution history** tab with every outcome. Both tabs can be filtered by category. Every action (raised, evidence added, review started, decision) is stored with who did it and when, and shown as the dispute's history.
+
+**Where it lives**
+
+| Part | Files |
+|---|---|
+| API | `backend/src/routes/disputes.js` (mounted at `/api/disputes`), `backend/src/lib/disputes.js` |
+| Data | `Dispute` model in `backend/src/models.js` (evidence, messages, history and decision are stored inside each dispute) |
+| Pages | `frontend/src/pages/Disputes.jsx`, `DisputeDetail.jsx`, `Resolver.jsx`, `frontend/src/components/RaiseDispute.jsx` |
+| Tests | `backend/tests/api.disputes.test.js` |
+
+The Assistant can also answer "do I have any disputes?" for the signed-in user. Evidence photos are stored with the other uploaded images. An Admin account is made as described in [Creating an admin](#creating-an-admin).
+
 ## Optional: Gemini for general questions
 
 Without a key, general questions are answered from a built-in product guide. To use Gemini:
