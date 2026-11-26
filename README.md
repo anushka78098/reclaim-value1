@@ -56,8 +56,8 @@ Open <http://localhost:5173>.
 4. As the Company, open **Requests** and choose **Accept**. The listing is now reserved.
 5. As the Buyer, open **My requests** and choose **Confirm after inspection**, which completes the trade. Choosing **Cancel** instead puts the listing back on the market.
 6. As the Buyer, open **Wanted alerts** and post what you need (for example bricks, at least 2,000 kg, up to ₹3.5/kg, within 50 km). When a Company publishes a matching listing, the bell shows a notification that opens it. Companies see open requests under **Buyer demand**.
-7. If a trade goes wrong, open **Requests** and press **Raise a dispute** on an accepted, completed or cancelled request. Add photos and notes, and chat with the other side under **Disputes**. An Admin (set `role` to `Admin` on a user in Atlas) opens **Resolver**, reads the evidence, and records Approve, Reject, Refund or Resolve with a reason. Both sides are notified and the full history is kept.
-7. Open **Impact** to see diverted kg, CO₂e, diversion rate, time-to-match, classification accuracy and price acceptance.
+7. If a trade goes wrong, open **Requests** and press **Raise a dispute** on an accepted, completed or cancelled request. Add photos and notes, and chat with the other side under **Disputes**. An Admin (see [Creating an admin](#creating-an-admin)) opens **Resolver**, reads the evidence, and records Approve, Reject, Refund or Resolve with a reason. Both sides are notified and the full history is kept.
+8. Open **Impact** to see diverted kg, CO₂e, diversion rate, time-to-match, classification accuracy and price acceptance.
 
 The **Assistant** answers questions about your own data ("show my inventory", "how much is 500 kg of steel worth?", "any pending requests?") by calling backend tools. It only reads; every change happens on a page where you confirm it.
 
@@ -92,6 +92,22 @@ Gemini never sees live inventory, and the assistant falls back to the guide if G
 ## Optional: Cloudinary image storage
 
 Set `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` and `CLOUDINARY_API_SECRET` in `backend/.env`. Otherwise images are stored in `backend/uploads/`.
+
+## Training notebooks (Google Colab)
+
+The material recognition models are trained in free Google Colab notebooks. Open one in Colab, choose *Runtime → Change runtime type → T4 GPU*, and run the cells from top to bottom. The full walkthrough is in [`ai-service/TRAINING.md`](ai-service/TRAINING.md).
+
+| Notebook | Use it to |
+|---|---|
+| [`train_colab.ipynb`](ai-service/training/train_colab.ipynb) | Train the first models (detector and whole-photo classifier) and write `materials.pt`, `materials_thresholds.json` and `materials_cls.pt` |
+| [`train_v2_colab.ipynb`](ai-service/training/train_v2_colab.ipynb) | Fix class imbalance (too much wood data) and add more tiles and "not a material" examples |
+| [`train_v3_colab.ipynb`](ai-service/training/train_v3_colab.ipynb) | Fix concrete rubble being treated as "other" |
+
+Notes for all three:
+
+- Keep your Roboflow key in a Colab secret named `ROBOFLOW_API_KEY`. Never paste it into a notebook cell or commit it.
+- Copy the finished files into `ai-service/weights/`. The `.pt` files are large and are not committed to Git; the deployed site uses their ONNX exports (see [DEPLOY.md](DEPLOY.md)).
+- Quote the accuracy printed by `eval_real_photos.py` in reports, not the YOLO mAP.
 
 ## Creating an admin
 
