@@ -69,8 +69,11 @@ const STATUS_STYLES = {
   cancelled: 'bg-white text-graphite-500 border-slab-400',
   withdrawn: 'bg-white text-graphite-500 border-slab-400',
   disposed: 'bg-white text-brick-600 border-brick-500/40',
+  open: 'bg-tag-300/40 text-graphite-800 border-tag-400',
+  under_review: 'bg-verdigris-50 text-verdigris-700 border-verdigris-300',
+  resolved: 'bg-verdigris-600 text-white border-verdigris-600',
 };
-const STATUS_TEXT = { inventory: 'In inventory' };
+const STATUS_TEXT = { inventory: 'In inventory', under_review: 'Under review' };
 
 export function StatusBadge({ status }) {
   return (

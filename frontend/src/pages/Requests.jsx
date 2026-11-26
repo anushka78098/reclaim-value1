@@ -3,11 +3,14 @@ import { Link } from 'react-router-dom';
 import { api, ago, inr, kg } from '../api';
 import { useAuth } from '../auth';
 import { MaterialName, MaterialPhoto } from '../components/MaterialTag';
+import RaiseDisputeModal from '../components/RaiseDispute';
 import {
   Button, Empty, ErrorNote, Field, Modal, PageHeader, Spinner, StatusBadge, useLoad, useToast,
 } from '../components/ui';
 
 const OPEN = ['pending', 'accepted'];
+// the seller has accepted at least once, so either side can dispute the trade
+const DISPUTABLE = ['accepted', 'completed', 'cancelled'];
 
 function ConfirmModal({ request, onClose, onDone }) {
   const toast = useToast();
@@ -83,6 +86,7 @@ export default function Requests() {
   const [tab, setTab] = useState('open');
   const [confirming, setConfirming] = useState(null);
   const [cancelling, setCancelling] = useState(null);
+  const [disputing, setDisputing] = useState(null);
   const [busy, setBusy] = useState(null);
   const { data, error, loading, reload } = useLoad(() => api('/requests'), []);
   const items = (data?.items || []).filter((r) => (tab === 'open' ? OPEN.includes(r.status) : !OPEN.includes(r.status)));
@@ -155,11 +159,20 @@ export default function Requests() {
               {seller && r.status === 'accepted' && <p className="text-sm text-graphite-500">Waiting for the buyer to inspect and confirm.</p>}
               {!seller && r.status === 'accepted' && <Button size="sm" onClick={() => setConfirming(r)}>Confirm after inspection</Button>}
               {!seller && OPEN.includes(r.status) && <Button size="sm" variant="ghost" onClick={() => setCancelling(r)}>Cancel</Button>}
+              {r.dispute && (
+                <Link to={`/disputes/${r.dispute._id}`} className="inline-flex items-center gap-2 text-sm font-semibold text-verdigris-700 hover:underline">
+                  View dispute <StatusBadge status={r.dispute.status} />
+                </Link>
+              )}
+              {DISPUTABLE.includes(r.status) && !['open', 'under_review'].includes(r.dispute?.status) && (
+                <Button size="sm" variant="secondary" onClick={() => setDisputing(r)}>Raise a dispute</Button>
+              )}
             </div>
           </li>
         ))}
       </ul>
       {confirming && <ConfirmModal request={confirming} onClose={() => setConfirming(null)} onDone={reload} />}
+      {disputing && <RaiseDisputeModal request={disputing} onClose={() => setDisputing(null)} />}
       {cancelling && <CancelModal request={cancelling} onClose={() => setCancelling(null)} onDone={reload} />}
     </>
   );

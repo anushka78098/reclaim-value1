@@ -14,21 +14,22 @@ const ICONS = {
   admin: 'M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z',
   wanted: 'M12 21s-7-4.4-7-10a7 7 0 0 1 14 0c0 5.6-7 10-7 10zM12 13.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z',
   demand: 'M3 10v4h3l6 4V6L6 10zM16 9a4 4 0 0 1 0 6M19 6a8 8 0 0 1 0 12',
+  dispute: 'M12 3v18M7 21h10M4 7h16M4 7l-2.5 6a3 3 0 0 0 5 0zM20 7l-2.5 6a3 3 0 0 0 5 0z',
 };
 
 const NAV = {
   Company: [
     ['/', 'Overview', 'home'], ['/capture', 'Capture', 'capture'], ['/inventory', 'Inventory', 'inventory'],
-    ['/listings', 'Listings', 'listings'], ['/requests', 'Requests', 'requests'], ['/demand', 'Buyer demand', 'demand'],
+    ['/listings', 'Listings', 'listings'], ['/requests', 'Requests', 'requests'], ['/disputes', 'Disputes', 'dispute'], ['/demand', 'Buyer demand', 'demand'],
     ['/impact', 'Impact', 'impact'],
     ['/assistant', 'Assistant', 'assistant'],
   ],
   Buyer: [
     ['/', 'Overview', 'home'], ['/marketplace', 'Marketplace', 'market'], ['/requests', 'My requests', 'requests'],
-    ['/wanted', 'Wanted alerts', 'wanted'], ['/impact', 'Impact', 'impact'], ['/assistant', 'Assistant', 'assistant'],
+    ['/wanted', 'Wanted alerts', 'wanted'], ['/disputes', 'Disputes', 'dispute'], ['/impact', 'Impact', 'impact'], ['/assistant', 'Assistant', 'assistant'],
   ],
   Admin: [
-    ['/', 'Overview', 'home'], ['/admin', 'Moderation', 'admin'], ['/marketplace', 'Marketplace', 'market'],
+    ['/', 'Overview', 'home'], ['/admin', 'Moderation', 'admin'], ['/resolver', 'Resolver', 'dispute'], ['/marketplace', 'Marketplace', 'market'],
     ['/impact', 'Impact', 'impact'], ['/assistant', 'Assistant', 'assistant'],
   ],
 };

@@ -49,6 +49,7 @@ function createApp() {
   app.use('/api/admin', require('./routes/admin'));
   app.use('/api/wanted', require('./routes/wanted'));
   app.use('/api/notifications', require('./routes/notifications'));
+  app.use('/api/disputes', require('./routes/disputes'));
 
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
 

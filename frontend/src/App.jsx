@@ -16,6 +16,9 @@ import Admin from './pages/Admin';
 import Account from './pages/Account';
 import Wanted from './pages/Wanted';
 import Demand from './pages/Demand';
+import Disputes from './pages/Disputes';
+import DisputeDetail from './pages/DisputeDetail';
+import Resolver from './pages/Resolver';
 
 function Guard({ roles, children }) {
   const { user } = useAuth();
@@ -41,6 +44,9 @@ export default function App() {
         <Route path="marketplace" element={<Marketplace />} />
         <Route path="requests" element={<Guard roles={['Company', 'Buyer', 'Recycler']}><Requests /></Guard>} />
         <Route path="wanted" element={<Guard roles={['Buyer', 'Recycler']}><Wanted /></Guard>} />
+        <Route path="disputes" element={<Guard roles={['Company', 'Buyer', 'Recycler']}><Disputes /></Guard>} />
+        <Route path="disputes/:id" element={<DisputeDetail />} />
+        <Route path="resolver" element={<Guard roles={['Admin']}><Resolver /></Guard>} />
         <Route path="demand" element={<Guard roles={['Company']}><Demand /></Guard>} />
         <Route path="impact" element={<Impact />} />
         <Route path="assistant" element={<Assistant />} />

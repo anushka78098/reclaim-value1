@@ -47,6 +47,11 @@ const ENTRIES = [
     answer: 'Buyers and recyclers can post a **Wanted alert** (material, minimum quantity, maximum price per kg, condition and distance). When a supplier publishes a listing that fits, the buyer gets a notification (the bell icon) with a link to it. Suppliers see open requests under **Buyer demand**, and get a nudge when a nearby buyer wants something they already hold in inventory, so they can publish it instead of sending it to landfill.',
   },
   {
+    id: 'disputes',
+    keywords: ['dispute', 'disputes', 'complaint', 'refund', 'resolver', 'wrong description', 'not as described', 'evidence', 'arbitration'],
+    answer: 'If a trade goes wrong (the item is not as described, the price or quality is off, or there is an order problem), the buyer or the seller can **raise a dispute** from **Requests** once the seller has accepted. Both sides add evidence (photos and written statements) and talk in the dispute chat. An admin (the resolver) reviews everything and records one final decision: **approve**, **reject**, **refund** or **resolve**, with a written reason. A refund cancels the trade and puts the listing back on the market; no money moves through the platform. Every step stays in the dispute history, and both sides are notified by the bell icon.',
+  },
+  {
     id: 'demo',
     keywords: ['demo', 'sample', 'seed', 'fake', 'test data', 'example listings'],
     answer: 'Demo listings are marked **[Demo]**. They are generated examples for testing the interface, not real inventory, market quotes or sales. Add them with `npm run seed:demo` in the backend folder.',

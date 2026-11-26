@@ -67,7 +67,7 @@ export default function Notifications({ dark = false }) {
             {data.unread > 0 && <button onClick={readAll} className="text-sm font-semibold text-verdigris-700 hover:underline">Mark all read</button>}
           </div>
           {!data.items.length ? (
-            <p className="px-4 py-6 text-sm text-graphite-500">Nothing yet. Matches for your Wanted alerts and buyer demand show up here.</p>
+            <p className="px-4 py-6 text-sm text-graphite-500">Nothing yet. Wanted alert matches, buyer demand and dispute updates show up here.</p>
           ) : (
             <ul className="max-h-96 overflow-y-auto">
               {data.items.map((n) => (

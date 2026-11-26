@@ -3,7 +3,7 @@
 // buyer may cancel while pending or after a failed inspection; seller may reject while pending.
 const express = require('express');
 const { notifyBuyersForListing } = require('../lib/wanted');
-const { Listing, Material, Request, User } = require('../models');
+const { Dispute, Listing, Material, Request, User } = require('../models');
 const { haversineKm } = require('../lib/geo');
 const {
   HttpError, authenticate, requireRole, objectId, num, str,
@@ -46,8 +46,11 @@ router.get('/', async (req, res) => {
   if (req.user.role === 'Company') q.seller = req.user._id;
   else if (req.user.role !== 'Admin') q.buyer = req.user._id;
   if (req.query.status) q.status = String(req.query.status);
-  const items = await populate(Request.find(q).sort({ createdAt: -1 }).limit(300));
-  res.json({ items });
+  const rows = await populate(Request.find(q).sort({ createdAt: -1 }).limit(300));
+  // newest dispute per request, so the page can offer "raise" or "view"
+  const disputes = await Dispute.find({ request: { $in: rows.map((r) => r._id) } }, 'request status createdAt').sort({ createdAt: 1 }).lean();
+  const latest = new Map(disputes.map((d) => [String(d.request), { _id: d._id, status: d.status }]));
+  res.json({ items: rows.map((r) => ({ ...r.toObject(), dispute: latest.get(String(r._id)) || null })) });
 });
 
 router.patch('/:id', async (req, res) => {

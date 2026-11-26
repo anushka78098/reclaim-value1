@@ -56,6 +56,7 @@ Open <http://localhost:5173>.
 4. As the Company, open **Requests** and choose **Accept**. The listing is now reserved.
 5. As the Buyer, open **My requests** and choose **Confirm after inspection**, which completes the trade. Choosing **Cancel** instead puts the listing back on the market.
 6. As the Buyer, open **Wanted alerts** and post what you need (for example bricks, at least 2,000 kg, up to ₹3.5/kg, within 50 km). When a Company publishes a matching listing, the bell shows a notification that opens it. Companies see open requests under **Buyer demand**.
+7. If a trade goes wrong, open **Requests** and press **Raise a dispute** on an accepted, completed or cancelled request. Add photos and notes, and chat with the other side under **Disputes**. An Admin (set `role` to `Admin` on a user in Atlas) opens **Resolver**, reads the evidence, and records Approve, Reject, Refund or Resolve with a reason. Both sides are notified and the full history is kept.
 7. Open **Impact** to see diverted kg, CO₂e, diversion rate, time-to-match, classification accuracy and price acceptance.
 
 The **Assistant** answers questions about your own data ("show my inventory", "how much is 500 kg of steel worth?", "any pending requests?") by calling backend tools. It only reads; every change happens on a page where you confirm it.
@@ -74,6 +75,7 @@ The **Assistant** answers questions about your own data ("show my inventory", "h
 | 8 | ESG / impact analytics | `backend/src/lib/impact.js` |
 | 9 | Admin moderation | `backend/src/routes/admin.js` |
 | 10 | Wanted alerts and notifications: buyers post what they need and are notified when a matching listing goes live; suppliers see open demand and get a nudge when they hold matching stock | `backend/src/lib/wanted.js`, `routes/wanted.js`, `routes/notifications.js` |
+| 11 | Dispute resolution: evidence (photos, notes), dispute chat, status tracking, admin Resolver dashboard with final decisions, history and notifications | `backend/src/routes/disputes.js`, `lib/disputes.js`, `frontend/src/pages/Resolver.jsx`, `DisputeDetail.jsx` |
 
 If the AI service is offline, the backend falls back to simpler built-in rules for search, price and recommendations. Photo analysis then asks for manual entry, and the UI says so.
 
@@ -124,6 +126,8 @@ GitHub Actions (`.github/workflows/ci.yml`) runs all three on every push and pul
 | POST/GET/PATCH | `/api/requests` (actions: accept, reject, cancel, complete) | Buyer, Recycler, Company |
 | GET/POST/PATCH/DELETE | `/api/wanted`, `GET /api/wanted/:id/matches` | Buyer, Recycler |
 | GET | `/api/wanted/demand` | Company, Admin |
+| GET/POST | `/api/disputes`, `/api/disputes/:id`, `/:id/evidence`, `/:id/messages`, `/:id/withdraw` | Buyer, Recycler, Company (parties); Admin reads and chats |
+| GET/POST | `/api/disputes/stats`, `/:id/review`, `/:id/decision` | Admin |
 | GET/POST/PATCH | `/api/notifications`, `POST /api/notifications/read-all`, `PATCH /api/notifications/:id/read` | signed in |
 | GET | `/api/analytics/summary` | signed in (scoped by role) |
 | GET/PATCH | `/api/admin/overview`, `/api/admin/users`, `/api/admin/listings` | Admin |

@@ -6,7 +6,7 @@
 const ai = require('./aiClient');
 const gemini = require('./gemini');
 const guide = require('./guide');
-const { Material, Listing, Request, Wanted } = require('../models');
+const { Material, Listing, Request, Wanted, Dispute } = require('../models');
 const { describeWanted } = require('./wanted');
 const { haversineKm } = require('./geo');
 const { MATERIALS } = require('./catalog');
@@ -18,10 +18,10 @@ const kg = (n) => (n >= 1000 ? `${(n / 1000).toLocaleString('en-IN', { maximumFr
 const label = (m) => MATERIALS[m]?.label.toLowerCase() || 'material';
 
 const ROLE_TOOLS = {
-  Company: ['list_inventory', 'list_my_listings', 'list_requests', 'impact_summary', 'estimate_price', 'recommend_action', 'search_listings', 'buyer_demand'],
-  Buyer: ['search_listings', 'list_requests', 'impact_summary', 'estimate_price'],
-  Recycler: ['search_listings', 'list_requests', 'impact_summary', 'estimate_price', 'recommend_action'],
-  Admin: ['impact_summary', 'search_listings', 'estimate_price', 'recommend_action', 'buyer_demand'],
+  Company: ['list_inventory', 'list_my_listings', 'list_requests', 'impact_summary', 'estimate_price', 'recommend_action', 'search_listings', 'buyer_demand', 'my_disputes'],
+  Buyer: ['search_listings', 'list_requests', 'impact_summary', 'estimate_price', 'my_disputes'],
+  Recycler: ['search_listings', 'list_requests', 'impact_summary', 'estimate_price', 'recommend_action', 'my_disputes'],
+  Admin: ['impact_summary', 'search_listings', 'estimate_price', 'recommend_action', 'buyer_demand', 'my_disputes'],
 };
 
 const TOOLS = {
@@ -79,6 +79,21 @@ const TOOLS = {
     };
   },
 
+  // Open disputes: your own, or all of them for an admin.
+  async my_disputes(_args, user) {
+    const admin = user.role === 'Admin';
+    const q = { status: { $in: ['open', 'under_review'] } };
+    if (!admin) q.$or = [{ buyer: user._id }, { seller: user._id }];
+    const [items, total] = await Promise.all([
+      Dispute.find(q, 'subject status category').sort({ updatedAt: -1 }).limit(5).lean(),
+      Dispute.countDocuments(q),
+    ]);
+    const page = admin ? '**Resolver**' : '**Disputes**';
+    if (!total) return { reply: `No open disputes${admin ? ' to review' : ''}. ${admin ? '' : 'You can raise one from **Requests** if a trade goes wrong.'}`.trim(), data: { type: 'disputes', items } };
+    const lines = items.map((d) => `• ${d.subject} (${d.status === 'under_review' ? 'under review' : 'open'})`);
+    return { reply: `${total} open dispute${total > 1 ? 's' : ''}:\n${lines.join('\n')}\nOpen ${page} to ${admin ? 'review' : 'respond'}.`, data: { type: 'disputes', items } };
+  },
+
   async list_requests(_args, user) {
     const mine = user.role === 'Company' ? { seller: user._id } : { buyer: user._id };
     const items = await Request.find({ ...mine, status: { $in: ['pending', 'accepted'] } })
@@ -123,6 +138,7 @@ const TOOLS = {
   },
 };
 
+const DISPUTE_RE = /\b(disputes?|complaints?)\b/i;
 const DEMAND_RE = /\b(buyer demand|demand for|who (wants|needs|is looking|is buying)|wanted (alerts?|requests?)|open demand|buyers? (want|need|are looking|is looking))\b/i;
 
 async function answerGeneral(message, history, user) {
@@ -146,6 +162,9 @@ async function runAgent({ message, history = [], user }) {
   }
   if (DEMAND_RE.test(message) && ROLE_TOOLS[user.role]?.includes('buyer_demand')) {
     intent.tool = 'buyer_demand';
+  }
+  if (DISPUTE_RE.test(message) && !/\b(what|how|why|explain|raise|file|open a|start a)\b/i.test(message) && ROLE_TOOLS[user.role]?.includes('my_disputes')) {
+    intent.tool = 'my_disputes';
   }
   if (intent.tool) {
     if (!ROLE_TOOLS[user.role]?.includes(intent.tool)) {

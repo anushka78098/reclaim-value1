@@ -116,7 +116,7 @@ wantedSchema.index({ active: 1, materialType: 1 });
 
 const notificationSchema = new Schema({
   user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-  kind: { type: String, enum: ['wanted_match', 'demand_nudge'], required: true },
+  kind: { type: String, enum: ['wanted_match', 'demand_nudge', 'dispute'], required: true },
   title: { type: String, required: true, maxlength: 160 },
   body: { type: String, maxlength: 400 },
   link: String,
@@ -125,6 +125,60 @@ const notificationSchema = new Schema({
   key: { type: String, required: true, unique: true },
 }, { timestamps: true });
 notificationSchema.index({ user: 1, createdAt: -1 });
+
+// Dispute between the two sides of a request (wrong description, price, quality
+// or order problems). Evidence and the chat live inside the dispute; an admin
+// reviews both sides and records one final decision. Nothing is ever deleted:
+// `history` keeps every step.
+const DISPUTE_CATEGORIES = ['description', 'pricing', 'quality', 'order', 'other'];
+const DISPUTE_OUTCOMES = ['approve', 'reject', 'refund', 'resolve'];
+const DISPUTE_STATUSES = ['open', 'under_review', 'resolved', 'withdrawn'];
+
+const disputeSchema = new Schema({
+  request: { type: Schema.Types.ObjectId, ref: 'Request', required: true, index: true },
+  listing: { type: Schema.Types.ObjectId, ref: 'Listing' },
+  buyer: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  seller: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  raisedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  category: { type: String, enum: DISPUTE_CATEGORIES, required: true },
+  subject: { type: String, required: true, trim: true, maxlength: 120 },
+  description: { type: String, required: true, trim: true, maxlength: 2000 },
+  status: { type: String, enum: DISPUTE_STATUSES, default: 'open' },
+  assignedTo: { type: Schema.Types.ObjectId, ref: 'User' },
+  evidence: [{
+    by: { type: Schema.Types.ObjectId, ref: 'User' },
+    name: String,
+    role: String,
+    kind: { type: String, enum: ['image', 'note'] },
+    url: String,
+    text: { type: String, maxlength: 1000 },
+    createdAt: { type: Date, default: Date.now },
+  }],
+  messages: [{
+    author: { type: Schema.Types.ObjectId, ref: 'User' },
+    name: String,
+    role: String,
+    text: { type: String, required: true, maxlength: 1000 },
+    createdAt: { type: Date, default: Date.now },
+  }],
+  history: [{
+    at: { type: Date, default: Date.now },
+    actor: { type: Schema.Types.ObjectId, ref: 'User' },
+    actorName: String,
+    action: String, // raised | evidence | review | decision | withdrawn
+    note: String,
+  }],
+  decision: {
+    outcome: { type: String, enum: [...DISPUTE_OUTCOMES, null] },
+    reason: String,
+    effect: String, // what the decision changed, in plain words
+    decidedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    decidedByName: String,
+    decidedAt: Date,
+  },
+  closedAt: Date,
+}, { timestamps: true });
+disputeSchema.index({ status: 1, createdAt: -1 });
 
 // Uploaded photos when no Cloudinary account is set up and the host has no
 // lasting disk (Render free, Vercel). Photos are shrunk in the browser first.
@@ -144,5 +198,9 @@ module.exports = {
   Request: mongoose.model('Request', requestSchema),
   Wanted: mongoose.model('Wanted', wantedSchema),
   Notification: mongoose.model('Notification', notificationSchema),
+  Dispute: mongoose.model('Dispute', disputeSchema),
+  DISPUTE_CATEGORIES,
+  DISPUTE_OUTCOMES,
+  DISPUTE_STATUSES,
   StoredImage: mongoose.model('StoredImage', imageSchema),
 };
