@@ -155,6 +155,19 @@ export function ToastProvider({ children }) {
 }
 export const useToast = () => useContext(ToastContext);
 
+// Keeps a page in step with other accounts: re-runs `reload` every `ms` while the tab
+// is visible, and as soon as the user comes back to the tab.
+export function useAutoRefresh(reload, ms = 30000) {
+  const ref = useRef(reload);
+  ref.current = reload;
+  useEffect(() => {
+    const tick = () => { if (!document.hidden) ref.current(); };
+    const t = setInterval(tick, ms);
+    document.addEventListener('visibilitychange', tick);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', tick); };
+  }, [ms]);
+}
+
 // Data loader hook: { data, error, loading, reload }
 export function useLoad(fn, deps = []) {
   const [state, setState] = useState({ data: null, error: null, loading: true });
@@ -162,7 +175,7 @@ export function useLoad(fn, deps = []) {
     setState((s) => ({ ...s, loading: true }));
     return fn().then(
       (data) => setState({ data, error: null, loading: false }),
-      (error) => setState({ data: null, error: error.message, loading: false }),
+      (error) => setState((prev) => ({ data: prev.data, error: error.message, loading: false })),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);

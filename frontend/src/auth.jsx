@@ -3,6 +3,14 @@ import { api, getToken, setToken, setUnauthorizedHandler } from './api';
 
 const AuthContext = createContext(null);
 
+// Older versions kept the assistant chat in the browser under one shared key, which is
+// why every account on a device saw the same history. It now lives on the server per
+// account; this removes whatever the old version left behind.
+function forgetLegacyChat() {
+  try { sessionStorage.removeItem('rv_chat'); localStorage.removeItem('rv_chat'); } catch { /* storage blocked */ }
+}
+forgetLegacyChat();
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [meta, setMeta] = useState({ materials: {}, cities: [] });
@@ -11,6 +19,7 @@ export function AuthProvider({ children }) {
   const logout = useCallback(() => {
     setToken(null);
     setUser(null);
+    forgetLegacyChat();
   }, []);
 
   useEffect(() => {
@@ -31,12 +40,14 @@ export function AuthProvider({ children }) {
     logout,
     async login(email, password) {
       const d = await api('/auth/login', { method: 'POST', body: { email, password } });
+      forgetLegacyChat();
       setToken(d.token);
       setUser(d.user);
       return d.user;
     },
     async register(form) {
       const d = await api('/auth/register', { method: 'POST', body: form });
+      forgetLegacyChat();
       setToken(d.token);
       setUser(d.user);
       return d.user;

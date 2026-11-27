@@ -24,7 +24,13 @@ How it fits together:
    - Go to **Connect → Drivers** and copy the string.
    - Insert the password in place of `<db_password>`.
    - Add the database name after `.mongodb.net/`, for example `mongodb+srv://user:pass@cluster0.xxxxx.mongodb.net/reclaim_value`.
-5. Optional: load the demo accounts and listings from `backend/`:
+5. If this database already has data from an earlier version, bring it up to date once (safe to repeat, deletes nothing):
+
+   ```bash
+   cd backend && MONGO_URI="..." npm run migrate
+   ```
+
+6. Optional: load the demo accounts and listings from `backend/`:
 
    ```bash
    MONGO_URI="..." npm run seed:demo

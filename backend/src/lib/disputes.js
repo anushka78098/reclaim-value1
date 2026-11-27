@@ -1,6 +1,6 @@
 // Dispute resolution helpers: access checks, notifications and what a decision changes.
 const {
-  Dispute, Listing, Material, Notification, Request, User,
+  Dispute, ImpactRecord, Listing, Material, Notification, Request, User,
 } = require('../models');
 const { notifyBuyersForListing } = require('./wanted');
 
@@ -66,6 +66,10 @@ async function applyOutcome(dispute, outcome) {
   request.status = 'cancelled';
   request.cancelReason = 'Refunded after dispute resolution';
   await request.save();
+  // a refunded trade did not happen, so its CO2 saving is taken back (only this trade's own record)
+  if (wasCompleted) {
+    await ImpactRecord.deleteOne({ listing: request.listing, $or: [{ request: request._id }, { request: { $exists: false } }] });
+  }
   // only put the listing back on sale if it is still held by this very trade
   const heldByTrade = listing && ((wasCompleted && listing.status === 'sold') || (!wasCompleted && listing.status === 'reserved'));
   if (!heldByTrade) return 'Refund recorded and the trade cancelled.';

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api, ago, inr } from '../api';
+import { api, ago, inr, kg } from '../api';
 import { useAuth } from '../auth';
 import { MaterialName } from '../components/MaterialTag';
 import {
@@ -106,6 +106,40 @@ function Listings() {
   );
 }
 
+function Transactions() {
+  const [status, setStatus] = useState('');
+  const { data, error, loading } = useLoad(() => api('/admin/transactions', { query: { status } }), [status]);
+  return (
+    <>
+      <select aria-label="Status" className="field mb-4 w-auto" value={status} onChange={(e) => setStatus(e.target.value)}>
+        <option value="">All trades</option>
+        {['pending', 'accepted', 'completed', 'rejected', 'cancelled'].map((s) => <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>)}
+      </select>
+      {loading && !data && <Spinner />}
+      <ErrorNote>{error}</ErrorNote>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[720px] text-sm">
+          <thead><tr className="border-b border-slab-300 text-left text-graphite-500"><th className="py-2">Listing</th><th>Seller</th><th>Buyer</th><th className="text-right">Offer</th><th>Status</th><th className="text-right">CO₂e</th><th className="text-right">Requested</th></tr></thead>
+          <tbody>
+            {data?.items.map((r) => (
+              <tr key={r._id} className="border-b border-slab-200">
+                <td className="py-2.5 font-semibold">{r.listing?.title || 'Deleted listing'}</td>
+                <td>{r.seller?.organization || r.seller?.name}</td>
+                <td>{r.buyer?.organization || r.buyer?.name} <span className="text-graphite-400">({r.buyer?.role})</span></td>
+                <td className="figure text-right">{inr(r.offerPrice)}</td>
+                <td><StatusBadge status={r.status} /></td>
+                <td className="figure text-right">{r.co2SavedKg != null ? kg(r.co2SavedKg) : '-'}</td>
+                <td className="text-right text-graphite-500">{ago(r.createdAt)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {data && !data.items.length && <p className="py-6 text-sm text-graphite-500">No trades with this status.</p>}
+      </div>
+    </>
+  );
+}
+
 export default function Admin() {
   const [tab, setTab] = useState('users');
   const { data } = useLoad(() => api('/admin/overview'), []);
@@ -121,11 +155,11 @@ export default function Admin() {
         </div>
       )}
       <div role="tablist" className="mb-5 flex gap-1 border-b border-slab-300">
-        {[['users', 'Users'], ['listings', 'Listings']].map(([v, l]) => (
+        {[['users', 'Users'], ['listings', 'Listings'], ['transactions', 'Transactions']].map(([v, l]) => (
           <button key={v} role="tab" aria-selected={tab === v} onClick={() => setTab(v)} className={`-mb-px border-b-2 px-3 py-2 text-sm font-semibold ${tab === v ? 'border-verdigris-600 text-verdigris-700' : 'border-transparent text-graphite-500'}`}>{l}</button>
         ))}
       </div>
-      {tab === 'users' ? <Users /> : <Listings />}
+      {tab === 'users' ? <Users /> : tab === 'listings' ? <Listings /> : <Transactions />}
     </>
   );
 }

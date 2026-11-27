@@ -4,6 +4,7 @@ const gemini = require('../lib/gemini');
 const config = require('../config');
 const { saveImage, storageMode } = require('../lib/storage');
 const { runAgent } = require('../lib/agent');
+const { Conversation } = require('../models');
 const { MATERIALS, conditionLabel } = require('../lib/catalog');
 const {
   HttpError, authenticate, requireRole, upload, num, str,
@@ -58,10 +59,39 @@ router.post('/estimate', async (req, res) => {
   res.json({ price, recommendation, conditionLabel: conditionLabel(b.condition_score) });
 });
 
+// Assistant conversations belong to the signed-in account. The owner is always
+// req.user (from the JWT) - there is no id in the URL or body to tamper with.
+const KEEP_MESSAGES = 100;
+
+router.get('/agent/history', async (req, res) => {
+  const convo = await Conversation.findOne({ user: req.user._id }).lean();
+  res.json({ messages: convo?.messages || [] });
+});
+
 router.post('/agent', async (req, res) => {
   const message = str(req.body?.message, { name: 'Message', max: 500, required: true });
-  const history = Array.isArray(req.body?.history) ? req.body.history.slice(-8) : [];
-  res.json(await runAgent({ message, history, user: req.user }));
+  // context for the model comes from the saved conversation, not from the browser
+  const convo = await Conversation.findOne({ user: req.user._id }, { messages: { $slice: -8 } }).lean();
+  const history = (convo?.messages || []).map(({ role, text }) => ({ role, text }));
+  const out = await runAgent({ message, history, user: req.user });
+  const now = new Date();
+  await Conversation.updateOne({ user: req.user._id }, {
+    $push: {
+      messages: {
+        $each: [
+          { role: 'user', text: message, createdAt: now },
+          { role: 'assistant', text: String(out.reply || '').slice(0, 4000), source: out.source, createdAt: new Date() },
+        ],
+        $slice: -KEEP_MESSAGES,
+      },
+    },
+  }, { upsert: true });
+  res.json(out);
+});
+
+router.delete('/agent/history', async (req, res) => {
+  await Conversation.updateOne({ user: req.user._id }, { $set: { messages: [] } });
+  res.status(204).end();
 });
 
 module.exports = router;

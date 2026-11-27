@@ -1,24 +1,27 @@
+import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './auth';
 import Layout from './components/Layout';
 import { Spinner } from './components/ui';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import Overview from './pages/Overview';
 import Capture from './pages/Capture';
 import Inventory from './pages/Inventory';
 import Listings from './pages/Listings';
 import Marketplace from './pages/Marketplace';
 import Requests from './pages/Requests';
-import Impact from './pages/Impact';
 import Assistant from './pages/Assistant';
-import Admin from './pages/Admin';
 import Account from './pages/Account';
 import Wanted from './pages/Wanted';
 import Demand from './pages/Demand';
 import Disputes from './pages/Disputes';
 import DisputeDetail from './pages/DisputeDetail';
 import Resolver from './pages/Resolver';
+
+// the chart library is only downloaded when a dashboard is opened, not on the sign-in page
+const Overview = lazy(() => import('./pages/Overview'));
+const Impact = lazy(() => import('./pages/Impact'));
+const Admin = lazy(() => import('./pages/Admin'));
 
 function Guard({ roles, children }) {
   const { user } = useAuth();
@@ -33,6 +36,7 @@ export default function App() {
     return <div className="grid min-h-screen place-items-center"><Spinner label="Loading your account" /></div>;
   }
   return (
+    <Suspense fallback={<div className="grid min-h-screen place-items-center"><Spinner label="Loading" /></div>}>
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/register" element={user ? <Navigate to="/" replace /> : <Register />} />
@@ -55,5 +59,6 @@ export default function App() {
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   );
 }

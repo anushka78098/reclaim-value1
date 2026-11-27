@@ -97,6 +97,42 @@ const requestSchema = new Schema({
   buyerRating: { type: Number, min: 1, max: 5 },
   cancelReason: String,
 }, { timestamps: true });
+// One open (pending or accepted) request per buyer and listing. The route checks
+// first for a friendly message; this index is what stops two simultaneous clicks.
+requestSchema.index({ listing: 1, buyer: 1 }, {
+  unique: true,
+  partialFilterExpression: { status: { $in: ['pending', 'accepted'] } },
+});
+
+// Environmental impact of one completed trade, saved the moment the buyer confirms.
+// `listing` is unique: a listing can only be sold once, so its CO2 is counted exactly
+// once however often the request is retried or the migration is re-run.
+const impactRecordSchema = new Schema({
+  listing: { type: Schema.Types.ObjectId, ref: 'Listing', required: true, unique: true },
+  request: { type: Schema.Types.ObjectId, ref: 'Request', index: true },
+  seller: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  buyer: { type: Schema.Types.ObjectId, ref: 'User', index: true },
+  materialType: { type: String, enum: MATERIAL_TYPES, required: true },
+  quantityKg: { type: Number, required: true, min: 0 },
+  divertedKg: { type: Number, required: true, min: 0 },
+  co2SavedKg: { type: Number, required: true, min: 0 },
+  value: Number, // agreed price (INR)
+  completedAt: { type: Date, required: true },
+}, { timestamps: true });
+impactRecordSchema.index({ completedAt: -1 });
+
+// One assistant conversation per account. The owner is always taken from the
+// signed-in user on the server, never from the request body, so histories can't mix.
+const conversationSchema = new Schema({
+  user: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
+  messages: [{
+    _id: false,
+    role: { type: String, enum: ['user', 'assistant'], required: true },
+    text: { type: String, required: true, maxlength: 4000 },
+    source: String,
+    createdAt: { type: Date, default: Date.now },
+  }],
+}, { timestamps: true });
 
 // "Wanted" alert: a Buyer/Recycler describes what they need and is notified
 // when a matching listing is published. Companies see open demand.
@@ -196,6 +232,8 @@ module.exports = {
   Material: mongoose.model('Material', materialSchema),
   Listing: mongoose.model('Listing', listingSchema),
   Request: mongoose.model('Request', requestSchema),
+  ImpactRecord: mongoose.model('ImpactRecord', impactRecordSchema),
+  Conversation: mongoose.model('Conversation', conversationSchema),
   Wanted: mongoose.model('Wanted', wantedSchema),
   Notification: mongoose.model('Notification', notificationSchema),
   Dispute: mongoose.model('Dispute', disputeSchema),
