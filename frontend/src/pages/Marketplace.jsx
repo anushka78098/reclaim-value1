@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api, ago, inr, kg } from '../api';
 import { useAuth } from '../auth';
 import { MATERIAL_NAMES, MaterialPhoto, SalvageTag } from '../components/MaterialTag';
 import {
-  Button, Empty, ErrorNote, Field, Modal, PageHeader, Spinner, useToast,
+  Button, Empty, ErrorNote, Modal, PageHeader, Spinner, StatusBadge, useToast,
 } from '../components/ui';
 
 const EXAMPLES = ['steel under 30k near me', 'bricks in good condition within 40 km', 'cheapest timber', '2 tonnes of concrete rubble'];
@@ -25,25 +25,43 @@ function describeFilters(f = {}) {
 
 const PART_LABEL = { sim: 'Fits your search', dist: 'Distance', price: 'Price per kg', rating: 'Seller rating' };
 
+// What the buyer can do with this listing right now, in plain words.
+function requestState(listing, user) {
+  const open = ['pending', 'accepted'].includes(listing.myRequest?.status);
+  if (user.role === 'Admin') return { kind: 'note', text: 'Admins monitor listings and cannot request material.' };
+  if (user.role === 'Company') {
+    return { kind: 'note', text: listing.isOwn ? 'This is your listing. Buyers request it and you answer under Requests.' : 'Seller accounts cannot request material. Use a Buyer or Recycler account to request it.' };
+  }
+  if (listing.isOwn) return { kind: 'note', text: 'This is your listing.' };
+  if (open) return { kind: 'requested', status: listing.myRequest.status };
+  if (listing.status && listing.status !== 'active') return { kind: 'note', text: `This listing is ${listing.status} and no longer takes requests.` };
+  return { kind: 'form' };
+}
+
 function ListingModal({ listing, onClose, onRequested }) {
   const { user } = useAuth();
   const toast = useToast();
   const [offer, setOffer] = useState(String(listing.price));
   const [message, setMessage] = useState('');
+  const [withMessage, setWithMessage] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const canRequest = ['Buyer', 'Recycler'].includes(user.role) && !listing.isOwn;
+  const state = requestState(listing, user);
 
   async function send(e) {
     e.preventDefault();
+    setError('');
+    const price = Number(offer);
+    if (!Number.isFinite(price) || price < 0) { setError('Enter your offer as a number, for example 2500.'); return; }
     setBusy(true);
     try {
-      await api('/requests', { method: 'POST', body: { listingId: listing._id, offerPrice: Number(offer), message } });
+      const r = await api('/requests', { method: 'POST', body: { listingId: listing._id, offerPrice: price, message } });
       toast('Request sent to the seller');
-      onRequested();
-      onClose();
+      onRequested(listing._id, { _id: r.request._id, status: r.request.status });
     } catch (err) {
       setError(err.message);
+      if (err.status === 409) onRequested(listing._id, { status: 'pending' }); // already requested elsewhere
+    } finally {
       setBusy(false);
     }
   }
@@ -72,18 +90,45 @@ function ListingModal({ listing, onClose, onRequested }) {
         </div>
       )}
       {listing.isDemo && <p className="mt-3 text-xs text-graphite-500">This is a generated demo listing, not real stock.</p>}
-      {canRequest && (
-        <form onSubmit={send} className="mt-5 space-y-3 border-t border-slab-300 pt-4">
-          <Field label="Your offer (₹)" hint="Asking price is pre-filled. The seller accepts or declines; you inspect before confirming.">
-            {(id) => <input id={id} type="number" min="0" className="field" value={offer} onChange={(e) => setOffer(e.target.value)} />}
-          </Field>
-          <Field label="Message to the seller">
-            {(id) => <textarea id={id} rows={3} maxLength={1000} className="field" placeholder="When can you collect? Do you need loading help?" value={message} onChange={(e) => setMessage(e.target.value)} />}
-          </Field>
-          <ErrorNote>{error}</ErrorNote>
-          <Button type="submit" busy={busy} className="w-full">Send request</Button>
-        </form>
-      )}
+
+      {/* Always in view at the bottom of the pop-up, so the request never hides below the fold. */}
+      <div className="sticky -bottom-5 -mx-5 mt-5 border-t border-slab-300 bg-white px-5 pb-5 pt-4 shadow-[0_-8px_12px_-8px_rgba(31,36,39,0.15)]">
+        {state.kind === 'form' && (
+          <form onSubmit={send} className="space-y-3" aria-label="Request this material">
+            {listing.myRequest && (
+              <p className="text-sm text-graphite-500">Your earlier request was {listing.myRequest.status}. You can send a new one.</p>
+            )}
+            {withMessage && (
+              <div>
+                <label htmlFor="req-msg" className="mb-1 block text-sm font-semibold">Message to the seller</label>
+                <textarea id="req-msg" rows={2} maxLength={1000} className="field" placeholder="When can you collect? Do you need loading help?" value={message} onChange={(e) => setMessage(e.target.value)} />
+              </div>
+            )}
+            <div className="flex items-end gap-3">
+              <div className="min-w-0 flex-1">
+                <label htmlFor="req-offer" className="mb-1 block text-sm font-semibold">Your offer (₹)</label>
+                <input id="req-offer" type="number" min="0" inputMode="decimal" className="field" value={offer} onChange={(e) => setOffer(e.target.value)} />
+              </div>
+              <Button type="submit" size="lg" busy={busy}>Send request</Button>
+            </div>
+            <div className="flex items-center justify-between gap-3 text-xs text-graphite-500">
+              <span>Asking price is filled in. The seller accepts or declines; you inspect before confirming.</span>
+              {!withMessage && <button type="button" className="shrink-0 font-semibold text-verdigris-700 hover:underline" onClick={() => setWithMessage(true)}>Add a message</button>}
+            </div>
+            <ErrorNote>{error}</ErrorNote>
+          </form>
+        )}
+        {state.kind === 'requested' && (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="flex items-center gap-2 text-sm font-semibold">
+              Your request <StatusBadge status={state.status} />
+              <span className="font-normal text-graphite-500">{state.status === 'pending' ? 'Waiting for the seller to reply.' : 'Accepted. Inspect it, then confirm under My requests.'}</span>
+            </p>
+            <Link to="/requests"><Button variant="secondary" size="sm">Open My requests</Button></Link>
+          </div>
+        )}
+        {state.kind === 'note' && <p className="text-sm text-graphite-600">{state.text}</p>}
+      </div>
     </Modal>
   );
 }
@@ -132,6 +177,12 @@ export default function Marketplace() {
       .finally(() => !cancelled && setLoading(false));
     return () => { cancelled = true; };
   }, [nl, filters, page]);
+
+  // after a request is sent: the card and the open pop-up both show its status straight away
+  function markRequested(listingId, myRequest) {
+    setItems((prev) => prev.map((l) => (l._id === listingId ? { ...l, myRequest } : l)));
+    setOpen((cur) => (cur && cur._id === listingId ? { ...cur, myRequest } : cur));
+  }
 
   function search(q) {
     setText(q);
@@ -199,6 +250,11 @@ export default function Marketplace() {
                 <span className="figure absolute right-2 top-2 rounded bg-graphite-900/85 px-2 py-0.5 text-sm font-bold text-white">
                   {Math.round(l.match.score * 100)}% match
                 </span>
+                {['pending', 'accepted'].includes(l.myRequest?.status) && (
+                  <span className="absolute left-2 top-2 rounded bg-tag-300 px-2 py-0.5 text-xs font-bold text-graphite-900">
+                    {l.myRequest.status === 'accepted' ? 'Request accepted' : 'Requested'}
+                  </span>
+                )}
               </div>
               <SalvageTag material={l.materialType} title={l.title} quantityKg={l.quantityKg} conditionScore={l.conditionScore} conditionLabel={l.conditionLabel} price={l.price}>
                 <p className="mt-1 flex items-center justify-between text-xs">
@@ -214,7 +270,7 @@ export default function Marketplace() {
       {result && page < result.pages && !loading && (
         <div className="mt-6 text-center"><Button variant="secondary" onClick={() => setPage(page + 1)}>Show more</Button></div>
       )}
-      {open && <ListingModal listing={open} onClose={closeModal} onRequested={() => {}} />}
+      {open && <ListingModal key={open._id} listing={open} onClose={closeModal} onRequested={markRequested} />}
     </>
   );
 }

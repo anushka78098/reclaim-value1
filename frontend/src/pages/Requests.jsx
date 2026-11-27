@@ -5,7 +5,7 @@ import { useAuth } from '../auth';
 import { MaterialName, MaterialPhoto } from '../components/MaterialTag';
 import RaiseDisputeModal from '../components/RaiseDispute';
 import {
-  Button, Empty, ErrorNote, Field, Modal, PageHeader, Spinner, StatusBadge, useLoad, useToast,
+  Button, Empty, ErrorNote, Field, Modal, PageHeader, Spinner, StatusBadge, useAutoRefresh, useLoad, useToast,
 } from '../components/ui';
 
 const OPEN = ['pending', 'accepted'];
@@ -89,6 +89,7 @@ export default function Requests() {
   const [disputing, setDisputing] = useState(null);
   const [busy, setBusy] = useState(null);
   const { data, error, loading, reload } = useLoad(() => api('/requests'), []);
+  useAutoRefresh(reload, 20000); // the other side's answer shows up without a manual refresh
   const items = (data?.items || []).filter((r) => (tab === 'open' ? OPEN.includes(r.status) : !OPEN.includes(r.status)));
 
   async function respond(r, action) {

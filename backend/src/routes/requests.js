@@ -4,6 +4,7 @@
 const express = require('express');
 const { notifyBuyersForListing } = require('../lib/wanted');
 const { Dispute, Listing, Material, Request, User } = require('../models');
+const { recordImpact } = require('../lib/impact');
 const { haversineKm } = require('../lib/geo');
 const {
   HttpError, authenticate, requireRole, objectId, num, str,
@@ -21,19 +22,29 @@ router.post('/', requireRole('Buyer', 'Recycler'), async (req, res) => {
   const body = req.body || {};
   const listing = await Listing.findById(objectId(body.listingId));
   if (!listing || listing.status !== 'active') throw new HttpError(404, 'This listing is no longer available');
+  if (String(listing.seller) === String(req.user._id)) throw new HttpError(403, 'You cannot request your own listing');
+  const seller = await User.findById(listing.seller, 'suspended');
+  if (!seller || seller.suspended) throw new HttpError(404, 'This listing is no longer available');
   const existing = await Request.findOne({ listing: listing._id, buyer: req.user._id, status: { $in: ['pending', 'accepted'] } });
   if (existing) throw new HttpError(409, 'You already have an open request on this listing');
 
   const quantityKg = num(body.quantityKg, { name: 'Quantity', min: 0.1, max: listing.quantityKg }) || listing.quantityKg;
-  const request = await Request.create({
-    listing: listing._id,
-    buyer: req.user._id,
-    seller: listing.seller,
-    quantityKg,
-    offerPrice: num(body.offerPrice, { name: 'Offer', min: 0, max: 1e10 }) ?? listing.price,
-    message: str(body.message, { name: 'Message', max: 1000 }),
-    distanceKm: haversineKm(req.user.location, listing.location),
-  });
+  let request;
+  try {
+    request = await Request.create({
+      listing: listing._id,
+      buyer: req.user._id,
+      seller: listing.seller,
+      quantityKg,
+      offerPrice: num(body.offerPrice, { name: 'Offer', min: 0, max: 1e10 }) ?? listing.price,
+      message: str(body.message, { name: 'Message', max: 1000 }),
+      distanceKm: haversineKm(req.user.location, listing.location),
+    });
+  } catch (err) {
+    // two clicks at once: the unique index let only one through
+    if (err.code === 11000) throw new HttpError(409, 'You already have an open request on this listing');
+    throw err;
+  }
   if (!listing.firstInterestAt) {
     listing.firstInterestAt = request.createdAt;
     await listing.save();
@@ -53,11 +64,23 @@ router.get('/', async (req, res) => {
   res.json({ items: rows.map((r) => ({ ...r.toObject(), dispute: latest.get(String(r._id)) || null })) });
 });
 
+// One request, visible to its buyer, its seller and admins only.
+router.get('/:id', async (req, res) => {
+  const request = await populate(Request.findById(objectId(req.params.id)));
+  const mine = (u) => String(u?._id) === String(req.user._id);
+  if (!request || (req.user.role !== 'Admin' && !mine(request.buyer) && !mine(request.seller))) {
+    throw new HttpError(404, 'Request not found');
+  }
+  res.json({ request });
+});
+
 router.patch('/:id', async (req, res) => {
   const request = await Request.findById(objectId(req.params.id));
   if (!request) throw new HttpError(404, 'Request not found');
   const isSeller = String(request.seller) === String(req.user._id);
   const isBuyer = String(request.buyer) === String(req.user._id);
+  // not your request: it does not exist as far as you can tell (admins monitor, they don't act)
+  if (!isSeller && !isBuyer) throw new HttpError(req.user.role === 'Admin' ? 403 : 404, req.user.role === 'Admin' ? 'Admins monitor trades but cannot act on them' : 'Request not found');
   const { action } = req.body || {};
   const listing = await Listing.findById(request.listing);
   const now = new Date();
@@ -116,6 +139,8 @@ router.patch('/:id', async (req, res) => {
   }
   await request.save();
   if (listing) await listing.save();
+  // the environmental impact is saved once, when the trade completes
+  if (action === 'complete') await recordImpact({ listing, request, completedAt: now });
   if (action === 'cancel' && listing?.status === 'active') await notifyBuyersForListing(listing);
   res.json({ request: await populate(Request.findById(request._id)) });
 });

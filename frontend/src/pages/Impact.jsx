@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { api, inr, kg } from '../api';
 import { useAuth } from '../auth';
 import { MaterialBars, MonthlyColumns } from '../components/Charts';
-import { MATERIAL_NAMES } from '../components/MaterialTag';
-import { ErrorNote, PageHeader, Spinner, Stat, useLoad } from '../components/ui';
+import { MATERIAL_NAMES, MaterialName } from '../components/MaterialTag';
+import { ErrorNote, PageHeader, Spinner, Stat, useAutoRefresh, useLoad } from '../components/ui';
+import { ago } from '../api';
 
 function Metric({ label, value, target, note }) {
   return (
@@ -24,8 +25,11 @@ export default function Impact() {
   const { user } = useAuth();
   const [metric, setMetric] = useState('divertedKg');
   const [asTable, setAsTable] = useState(false);
-  const { data: s, error, loading } = useLoad(() => api('/analytics/summary'), []);
+  const { data: s, error, loading, reload } = useLoad(() => api('/analytics/summary'), []);
+  const { data: recs, reload: reloadRecs } = useLoad(() => api('/analytics/impact-records'), []);
+  useAutoRefresh(() => { reload(); reloadRecs(); }, 30000);
   const supply = s && s.scope !== 'buyer';
+  const otherSide = user.role === 'Company' ? 'Buyer' : user.role === 'Admin' ? 'Seller and buyer' : 'Seller';
 
   return (
     <>
@@ -33,7 +37,7 @@ export default function Impact() {
         {user.role === 'Admin' ? 'Platform-wide' : 'Your'} landfill diversion and carbon savings.
         CO₂ figures are estimates from embodied-carbon factors per material: reuse and sale count in full, recycling 45%, disposal nothing.
       </PageHeader>
-      {loading && <Spinner />}
+      {loading && !s && <Spinner />}
       <ErrorNote>{error}</ErrorNote>
       {s && (
         <>
@@ -73,6 +77,34 @@ export default function Impact() {
                 </table>
               )}
             </div>
+          </section>
+
+          <section className="mt-10">
+            <h2 className="mb-1 text-xl font-bold">CO₂ saved per completed trade</h2>
+            <p className="mb-3 text-sm text-graphite-500">
+              {user.role === 'Admin' ? 'Every trade on the platform' : user.role === 'Company' ? 'Your sales' : 'Your purchases'}: saved once, when the buyer confirms the trade, and kept in the database.
+              {recs && recs.totals.trades > 0 && <> Total <strong>{kg(recs.totals.co2SavedKg)} CO₂e</strong> over {recs.totals.trades} trade{recs.totals.trades === 1 ? '' : 's'}.</>}
+            </p>
+            {recs && !recs.items.length && <p className="rounded-md border border-dashed border-slab-400 px-4 py-6 text-sm text-graphite-500">No trade has been completed yet. The saving is recorded here as soon as one is.</p>}
+            {recs && recs.items.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[560px] text-sm">
+                  <thead><tr className="border-b border-slab-300 text-left text-graphite-500"><th className="py-2">Listing</th><th>Material</th><th>{otherSide}</th><th className="text-right">Quantity</th><th className="text-right">CO₂e</th><th className="text-right">Completed</th></tr></thead>
+                  <tbody>
+                    {recs.items.map((r) => (
+                      <tr key={r._id} className="border-b border-slab-200">
+                        <td className="py-2 font-semibold">{r.listing}</td>
+                        <td><MaterialName material={r.materialType} /></td>
+                        <td>{user.role === 'Admin' ? `${r.seller} / ${r.buyer}` : r.counterparty}</td>
+                        <td className="figure text-right">{kg(r.quantityKg)}</td>
+                        <td className="figure text-right">{kg(r.co2SavedKg)}</td>
+                        <td className="text-right text-graphite-500">{ago(r.at)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
 
           {supply && (

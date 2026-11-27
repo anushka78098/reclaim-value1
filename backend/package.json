@@ -12,7 +12,8 @@
     "start": "node src/server.js",
     "test": "jest --runInBand",
     "seed:demo": "node scripts/seedDemo.js",
-    "test:gemini": "node scripts/testGemini.js"
+    "test:gemini": "node scripts/testGemini.js",
+    "migrate": "node scripts/migrate.js"
   },
   "jest": {
     "testEnvironment": "node",

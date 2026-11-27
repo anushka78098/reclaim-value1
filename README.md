@@ -37,6 +37,7 @@ uvicorn main:app --reload --port 8000
 cd backend
 cp .env.example .env               # Windows: copy .env.example .env  - then set JWT_SECRET (and MONGO_URI for Atlas)
 npm install
+npm run migrate                    # existing database only: adds the CO2 impact records (safe to re-run, deletes nothing)
 npm run seed:demo                  # optional: 50 clearly-marked sample listings + demo accounts
 npm run dev
 
@@ -78,6 +79,14 @@ The **Assistant** answers questions about your own data ("show my inventory", "h
 | 11 | Dispute resolution: evidence (photos, notes), dispute chat, status tracking, admin Resolver dashboard with final decisions, history and notifications | `backend/src/routes/disputes.js`, `lib/disputes.js`, `frontend/src/pages/Resolver.jsx`, `DisputeDetail.jsx` |
 
 If the AI service is offline, the backend falls back to simpler built-in rules for search, price and recommendations. Photo analysis then asks for manual entry, and the UI says so.
+
+## Dashboards, CO₂ records and assistant history
+
+- **Dashboards.** The Overview page is built from `GET /api/analytics/dashboard`, which reads MongoDB for the signed-in account (taken from the JWT, never from the request): a seller sees their own listings, requests and trades, a buyer their own requests and purchases, an admin the whole platform. Charts use Recharts, each has a "Show as tables" switch, and the page refreshes itself every 30 seconds and when you return to the tab.
+- **CO₂ records.** When a buyer confirms a trade, one `ImpactRecord` is saved (material, kilograms, CO₂e from the per-material factors in `lib/catalog.js`, price, date). It is unique per listing, so double clicks, retries and re-running the migration never count a trade twice. A dispute that ends in a refund removes that trade's record, and a later sale of the same listing is recorded again. Sellers, buyers and the platform totals all read these saved records.
+- **Assistant history.** Each account has its own conversation in MongoDB (`Conversation`, one per user). The server decides whose it is from the JWT, so there is nothing to tamper with, and the browser no longer keeps chat in session storage.
+- **Requests.** A buyer can request an active listing once (a database index also stops two clicks at the same instant), never their own, and sees the status on the marketplace card and under My requests. Only the buyer and seller of a request can read or change it.
+- **Upgrading an existing database.** Run `cd backend && npm run migrate` once. It creates the new collections and indexes and writes the missing CO₂ record for every trade completed before records existed. The app also does this automatically the first time the analytics are opened after a deploy.
 
 ## Dispute resolution
 
@@ -187,7 +196,10 @@ GitHub Actions (`.github/workflows/ci.yml`) runs all three on every push and pul
 | GET/POST | `/api/disputes`, `/api/disputes/:id`, `/:id/evidence`, `/:id/messages`, `/:id/withdraw` | Buyer, Recycler, Company (parties); Admin reads and chats |
 | GET/POST | `/api/disputes/stats`, `/:id/review`, `/:id/decision` | Admin |
 | GET/POST/PATCH | `/api/notifications`, `POST /api/notifications/read-all`, `PATCH /api/notifications/:id/read` | signed in |
-| GET | `/api/analytics/summary` | signed in (scoped by role) |
+| GET | `/api/analytics/summary`, `/api/analytics/dashboard`, `/api/analytics/impact-records` | signed in (always scoped to your own account; Admin sees the platform) |
+| GET | `/api/ai/agent/history`; DELETE `/api/ai/agent/history` | signed in (your own conversation only) |
+| GET | `/api/requests/:id` | the buyer, the seller or an Admin (anyone else gets 404) |
+| GET | `/api/admin/transactions` | Admin |
 | GET/PATCH | `/api/admin/overview`, `/api/admin/users`, `/api/admin/listings` | Admin |
 
 AI service: `GET /health`, `POST /analyze`, `/price`, `/recommend`, `/nlp/parse`, `/agent`. Interactive docs at <http://localhost:8000/docs>.

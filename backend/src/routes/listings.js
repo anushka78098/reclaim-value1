@@ -89,7 +89,15 @@ router.get('/:id', async (req, res) => {
     .populate('seller', 'name organization rating ratingCount city').lean();
   if (!listing || (listing.status === 'withdrawn' && String(listing.seller._id) !== String(req.user._id)
     && req.user.role !== 'Admin')) throw new HttpError(404, 'Listing not found');
-  res.json({ listing: { ...listing, distanceKm: haversineKm(req.user.location, listing.location) } });
+  const mine = await Request.findOne({ listing: listing._id, buyer: req.user._id }, 'status').sort({ createdAt: -1 }).lean();
+  res.json({
+    listing: {
+      ...listing,
+      distanceKm: haversineKm(req.user.location, listing.location),
+      isOwn: String(listing.seller._id) === String(req.user._id),
+      myRequest: mine ? { _id: mine._id, status: mine.status } : null,
+    },
+  });
 });
 
 // Seller edits price/description, or withdraws / re-activates the listing.

@@ -1,6 +1,8 @@
 // Governance: user moderation and listing take-downs.
 const express = require('express');
-const { User, Listing, Request, Material, ROLES } = require('../models');
+const {
+  User, Listing, Request, Material, ImpactRecord, ROLES,
+} = require('../models');
 const { supplySummary } = require('../lib/impact');
 const {
   HttpError, authenticate, requireRole, objectId,
@@ -69,6 +71,20 @@ router.patch('/listings/:id', async (req, res) => {
   await Request.updateMany({ listing: listing._id, status: { $in: ['pending', 'accepted'] } },
     { status: 'rejected', respondedAt: new Date() });
   res.json({ listing });
+});
+
+// All trades on the platform, with the CO2 each completed one saved.
+router.get('/transactions', async (req, res) => {
+  const q = {};
+  if (req.query.status) q.status = String(req.query.status);
+  const rows = await Request.find(q).sort({ createdAt: -1 }).limit(300)
+    .populate('listing', 'title materialType quantityKg price')
+    .populate('buyer', 'name organization role').populate('seller', 'name organization').lean();
+  const records = await ImpactRecord.find({ listing: { $in: rows.map((r) => r.listing?._id).filter(Boolean) } }, 'listing co2SavedKg').lean();
+  const co2 = new Map(records.map((r) => [String(r.listing), r.co2SavedKg]));
+  res.json({
+    items: rows.map((r) => ({ ...r, co2SavedKg: r.status === 'completed' ? co2.get(String(r.listing?._id)) ?? null : null })),
+  });
 });
 
 module.exports = router;

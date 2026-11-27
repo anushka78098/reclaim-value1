@@ -1,5 +1,5 @@
 // Marketplace search shared by GET /api/listings and the AI agent tool.
-const { Listing } = require('../models');
+const { Listing, Request } = require('../models');
 const { MATERIALS } = require('./catalog');
 const { cityLocation } = require('./geo');
 const { scoreListings } = require('./matching');
@@ -38,11 +38,19 @@ async function searchListings({ filters = {}, user, page = 1, limit = 12 }) {
 
   const total = scored.length;
   const start = (Math.max(page, 1) - 1) * limit;
-  const items = scored.slice(start, start + limit).map(({ listing, distanceKm, match }) => ({
+  const pageRows = scored.slice(start, start + limit);
+  // the caller's own latest request on each listing, so the page can show its status
+  const mine = new Map();
+  if (user && pageRows.length) {
+    const rows = await Request.find({ buyer: user._id, listing: { $in: pageRows.map((r) => r.listing._id) } }, 'listing status').sort({ createdAt: 1 }).lean();
+    rows.forEach((r) => mine.set(String(r.listing), { _id: r._id, status: r.status }));
+  }
+  const items = pageRows.map(({ listing, distanceKm, match }) => ({
     ...listing,
     distanceKm,
     match,
     isOwn: user ? String(listing.seller?._id) === String(user._id) : false,
+    myRequest: mine.get(String(listing._id)) || null,
   }));
   return { items, total, page, pages: Math.ceil(total / limit) || 1, origin: origin ? (cityLoc?.city || user?.city) : null };
 }
